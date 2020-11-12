@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import sys
 import os
+import sys
 import json
+import argparse
 
 from antlr4 import *
 from Py2NbLexer import Py2NbLexer
@@ -42,7 +43,7 @@ class NotebookWriter(Py2NbListener):
         self.current_cell['source'].append(str(ctx.TEXT()))
 
 
-def transform(input_file, output_file):
+def transform_p2n(input_file, output_file):
     input_stream = FileStream(input_file)
     lexer = Py2NbLexer(input_stream)
     stream = CommonTokenStream(lexer)
@@ -53,12 +54,44 @@ def transform(input_file, output_file):
     walker.walk(notebook_writer, tree)
 
 
+def transform_n2p(input_file, output_file):
+    notebook = None
+    with open(input_file, 'r') as f:
+        notebook = json.load(f)
+
+    with open(output_file, 'w') as f:
+        for cell in notebook['cells']:
+            f.write('# startcell\n')
+            for line in cell['source']:
+                f.write(line + '\n')
+            f.write('# endcell\n')
+            if cell is not notebook['cells'][-1]:
+                f.write('\n')
+
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Transform between python files and python Jupyter Notebooks')
+
+    parser.add_argument('file',
+                        metavar='F',
+                        nargs=1,
+                        help='File to transform')
+
+    parser.add_argument('--n2p',
+                        help='Transform notebook to python file (default: python file to notebook)',
+                        action='store_true')
+
+    args = parser.parse_args()
+
     try:
-        input_file = sys.argv[1]
+        input_file = args.file[0]
         file_name, _ = os.path.splitext(input_file)
-        output_file = file_name + '.ipynb'
-        transform(input_file, output_file)
+        if args.n2p:
+            output_file = file_name + '.py'
+            transform_n2p(input_file, output_file)
+        else:
+            output_file = file_name + '.ipynb'
+            transform_p2n(input_file, output_file)
     except Exception as e:
-        print(e)
+        print(f"Couldn't transform: {e}")
 
